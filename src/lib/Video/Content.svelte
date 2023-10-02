@@ -12,9 +12,7 @@
   let self: HTMLVideoElement, remote: HTMLVideoElement;
 
   let mediaObject = {
-    video: {
-      aspectRatio: 9 / 16,
-    },
+    video: true,
     audio: true,
   };
 
@@ -40,9 +38,6 @@
   const addVideoStream = (video: HTMLVideoElement, stream: MediaStream) => {
     if (!video) return;
     video.srcObject = stream;
-    video.addEventListener("loadedmetadata", () => {
-      video.play();
-    });
   };
 
   const handleOnClose = () => {
@@ -99,8 +94,12 @@
         call,
       };
       handleStream(stream);
-    } catch (err) {
-      console.log({ err });
+    } catch (err: any) {
+      if (err.name === "NotAllowedError") {
+        toast.error("Allow permission to access audio and video");
+      } else {
+        console.log({ err });
+      }
     }
   };
 
@@ -110,9 +109,12 @@
       const stream = await navigator.mediaDevices.getUserMedia(mediaObject);
       handleStream(stream);
       $connection?.call?.answer?.(stream);
-    } catch (err) {
-      console.log({ err });
-      toast.error("Please provide video and audio access");
+    } catch (err: any) {
+      if (err.name === "NotAllowedError") {
+        toast.error("Allow permission to access audio and video");
+      } else {
+        console.log({ err });
+      }
     }
   };
 
@@ -216,13 +218,15 @@
           <video
             bind:this={remote}
             class="border w-full sm:w-auto h-full rounded mx-auto"
+            autoplay
+            muted
           >
             <track kind="captions" />
           </video>
         </div>
 
         <div class="absolute bottom-0 right-0 z-10 w-36 sm:w-40">
-          <video bind:this={self} class="border h-full rounded">
+          <video bind:this={self} autoplay class="border h-full rounded" muted>
             <track kind="captions" />
           </video>
         </div>
