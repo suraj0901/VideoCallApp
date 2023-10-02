@@ -14,7 +14,7 @@
   };
 </script>
 
-<!-- <audio src="/ring.mp3" autoplay loop /> -->
+<audio src="/ring.mp3" autoplay loop />
 <Card.Content class="grid place-items-center h-full sm:min-h-[78vh]">
   <div class="flex flex-col gap-2 items-center">
     <p class="text-lg tracking-wide">Incomming Call</p>

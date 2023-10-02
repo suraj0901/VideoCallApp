@@ -21,11 +21,13 @@
   let connectionTimeOutId: NodeJS.Timeout | null;
   $: {
     if ($connection.status === "incomming") {
+      navigator.vibrate([200, 300, 500]);
       connectionTimeOutId = setTimeout(
         () => handleDecline("Not Recieved"),
         20000
       );
     } else {
+      navigator.vibrate([]);
       if (connectionTimeOutId) {
         clearTimeout(connectionTimeOutId);
         connectionTimeOutId = null;
@@ -202,7 +204,7 @@
   <Card.Root
     class="{$connection.status === 'disconnected'
       ? 'opacity-0 -z-10'
-      : 'opacity-100 z-10'} sm:opacity-100 sm:z-0 sm:col-span-3  sm:relative absolute inset-0"
+      : 'opacity-100 z-10'} sm:opacity-100 sm:z-0 sm:col-span-3 h-full sm:relative absolute inset-0"
   >
     <!-- <Card.Header>
         <Card.Title>Card Title</Card.Title>
@@ -219,7 +221,7 @@
           </video>
         </div>
 
-        <div class="absolute bottom-0 right-0 z-10 w-24 sm:w-40">
+        <div class="absolute bottom-0 right-0 z-10 w-36 sm:w-40">
           <video bind:this={self} class="border h-full rounded">
             <track kind="captions" />
           </video>
