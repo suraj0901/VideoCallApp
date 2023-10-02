@@ -89,6 +89,10 @@
       const call = peer.call(id, stream, {
         metadata: { peerName: name },
       });
+      if (!call) {
+        closeVideo(stream);
+        return;
+      }
       $connection = {
         status: "connecting",
         call,
@@ -152,7 +156,9 @@
 
   onMount(() => {
     peer.on("error", (error) => {
-      if (error.type === "peer-unavailable") {
+      if (error.type === "unavailable-id" || error.type === "disconnected") {
+        toast.error("Already loggedIn on another place. Logout from there");
+      } else if (error.type === "peer-unavailable") {
         if (!$connection.call?.metadata?.peerName) return;
         toast.error(`${$connection.call?.metadata?.peerName} is not online`);
         handleOnClose();
@@ -165,6 +171,24 @@
     });
 
     peer.on("call", async (call) => {
+      console.log("document.visibilityState", document.visibilityState);
+      console.log("Notification.permission", Notification.permission);
+      if (
+        document.visibilityState === "hidden" &&
+        Notification.permission === "granted"
+      ) {
+        console.log("Sending Notification");
+        const notification = new Notification(`${call.metadata.peerName}`, {
+          vibrate: [200, 100, 200, 100, 200, 100, 200],
+          requireInteraction: true,
+        });
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible" && notification) {
+            console.log("closing notification");
+            notification.close();
+          }
+        });
+      }
       $connection = {
         status: "incomming",
         call,
@@ -186,6 +210,13 @@
         connection.close();
       }
     });
+    Notification.requestPermission()
+      .then((permission) => {
+        console.log(permission);
+      })
+      .catch(() => {
+        toast.error("Please allow notification permission");
+      });
 
     return () => {
       $connection.call?.close();
