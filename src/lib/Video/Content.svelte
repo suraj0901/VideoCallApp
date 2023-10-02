@@ -219,7 +219,6 @@
             bind:this={remote}
             class="border w-full sm:w-auto h-full rounded mx-auto"
             autoplay
-            muted
           >
             <track kind="captions" />
           </video>
