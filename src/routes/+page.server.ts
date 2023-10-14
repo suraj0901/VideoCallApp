@@ -1,5 +1,6 @@
 import { fail, redirect } from "@sveltejs/kit";
 import type { PageServerLoad } from "./$types";
+import { env } from "$env/dynamic/public";
 
 export const load: PageServerLoad = async ({
   locals: { getSession, supabase },
@@ -15,6 +16,7 @@ export const load: PageServerLoad = async ({
   return {
     users: profile,
     self: session.user,
+    subscription_public_key: env.PUBLIC_WEBPUSH_KEY,
   };
 };
 

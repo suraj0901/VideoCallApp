@@ -57,6 +57,95 @@ self.addEventListener("fetch", (event) => {
       return cache.match(event.request);
     }
   }
-
   event.respondWith(respond());
+});
+
+self.addEventListener("push", (e) => {
+  const channel = new BroadcastChannel("sw-messages");
+
+  if (e.data) {
+    const notification = e.data.json();
+    console.log({ notification });
+    if (notification.type === "decline") {
+      channel.postMessage({ type: notification.type });
+    }
+    if (notification.type === "call") {
+      e.waitUntil(
+        self.registration.showNotification(notification.peerId, {
+          icon: "favicon-128x128.png",
+          vibrate: [200, 100, 300],
+          requireInteraction: true,
+          userVisibleOnly: true,
+          data: {
+            id: notification.id,
+          },
+          tag: notification.peerId,
+          // sound: "/ring.mp3",
+          actions: [
+            {
+              action: `answer`,
+              title: "Answer",
+              type: "button",
+              icon: "/answer.svg",
+            },
+            {
+              action: "decline",
+              title: "Decline",
+              type: "button",
+              icon: "/decline.svg",
+            },
+          ],
+        })
+      );
+    }
+  }
+});
+
+self.addEventListener("notificationclick", (event) => {
+  if (!event.action) {
+    console.log("Notification Click.");
+    return;
+  }
+  const { notification } = event;
+  const sendNotification = async () => {
+    try {
+      const response = await fetch("/sendNotification", {
+        method: "POST",
+        body: JSON.stringify({
+          id: notification.tag,
+          payload: {
+            id: notification.data.id,
+            peerId: notification.tag,
+            type: "decline",
+          },
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(response.statusText);
+      }
+      console.log("decline notification sent");
+    } catch (error) {
+      console.error(error);
+    }
+  };
+  switch (event.action) {
+    case "answer":
+      event.notification.close();
+      const origin = self.location.origin;
+      const path = `${origin}?answer=${notification.tag}`;
+      console.log("self.location", path);
+      clients.openWindow(path);
+      break;
+    case "decline": {
+      event.notification.close();
+      sendNotification();
+      break;
+    }
+    default:
+      console.log(`Unknown action clicked: '${event.action}'`);
+      break;
+  }
 });

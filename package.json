@@ -37,6 +37,7 @@
     "postgres": "^3.3.5",
     "svelte-french-toast": "^1.2.0",
     "tailwind-merge": "^1.14.0",
-    "tailwind-variants": "^0.1.14"
+    "tailwind-variants": "^0.1.14",
+    "web-push": "^3.6.6"
   }
 }

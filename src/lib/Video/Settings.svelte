@@ -36,21 +36,23 @@
     selectedVideo: { value: string | undefined; label: string | undefined };
 
   $: {
-    let audioID = $connection.call?.localStream
-      .getAudioTracks()[0]
-      .getSettings().deviceId;
-    let videoID = $connection.call?.localStream
-      .getVideoTracks()[0]
-      .getSettings().deviceId;
+    if ($connection.call?.localStream) {
+      let audioID = $connection.call?.localStream
+        .getAudioTracks()[0]
+        .getSettings().deviceId;
+      let videoID = $connection.call?.localStream
+        .getVideoTracks()[0]
+        .getSettings().deviceId;
 
-    selectedAudio = {
-      value: audioID,
-      label: audioDevices.find((item) => item.deviceId === audioID)?.label,
-    };
-    selectedVideo = {
-      value: videoID,
-      label: videoDevices.find((item) => item.deviceId === videoID)?.label,
-    };
+      selectedAudio = {
+        value: audioID,
+        label: audioDevices.find((item) => item.deviceId === audioID)?.label,
+      };
+      selectedVideo = {
+        value: videoID,
+        label: videoDevices.find((item) => item.deviceId === videoID)?.label,
+      };
+    }
   }
 
   const dispatch = createEventDispatcher();

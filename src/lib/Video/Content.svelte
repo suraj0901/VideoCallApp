@@ -7,8 +7,10 @@
   import Footer from "./Footer.svelte";
   import Incomming from "./Incomming.svelte";
   import { connection } from "./connection";
+  import { page } from "$app/stores";
 
-  export let currentUser;
+  export let currentUser: any;
+  export let pushNotificationPublicKey: string;
   let self: HTMLVideoElement, remote: HTMLVideoElement;
 
   let mediaObject = {
@@ -18,7 +20,9 @@
 
   let connectionTimeOutId: NodeJS.Timeout | null;
   $: {
-    if ($connection.status === "incomming") {
+    if ($connection.status === "connecting") {
+      connectionTimeOutId = setTimeout(handleOnClose, 20000);
+    } else if ($connection.status === "incomming") {
       navigator.vibrate([200, 300, 500]);
       connectionTimeOutId = setTimeout(
         () => handleDecline("Not Recieved"),
@@ -33,7 +37,9 @@
     }
   }
 
-  const peer = new Peer(currentUser.id ?? "");
+  const peer = new Peer(currentUser.id ?? "", {
+    secure: true,
+  });
 
   const addVideoStream = (video: HTMLVideoElement, stream: MediaStream) => {
     if (!video) return;
@@ -42,6 +48,7 @@
 
   const handleOnClose = () => {
     closeVideo($connection.call?.localStream!);
+    $connection.call?.close();
     $connection = {
       status: "disconnected",
       call: null,
@@ -78,7 +85,7 @@
     stream.getTracks().forEach((track) => track.stop());
   };
 
-  const handleCall = async (id: string, name: string) => {
+  const handleCall = async (id: string, name?: string) => {
     if ($connection.status !== "disconnected") {
       toast.error("Already on another call");
       return;
@@ -89,14 +96,12 @@
       const call = peer.call(id, stream, {
         metadata: { peerName: name },
       });
-      if (!call) {
-        closeVideo(stream);
-        return;
-      }
+
       $connection = {
-        status: "connecting",
+        status: name === undefined ? "connected" : "connecting",
         call,
       };
+
       handleStream(stream);
     } catch (err: any) {
       if (err.name === "NotAllowedError") {
@@ -108,7 +113,6 @@
   };
 
   const handleAnswerCall = async () => {
-    if (!$connection.call || $connection.status !== "incomming") return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia(mediaObject);
       handleStream(stream);
@@ -133,6 +137,38 @@
     handleOnClose();
   };
 
+  let retryAttempts = 0;
+  const sendNotification = async (id: string) => {
+    try {
+      console.log({ id });
+      const response = await fetch("/sendNotification", {
+        method: "POST",
+        body: JSON.stringify({
+          id,
+          payload: {
+            id,
+            peerId: currentUser.id,
+            type: "call",
+            time: Date.now(),
+          },
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        throw new Error(response.statusText);
+      }
+      // toast.success("Notification Sent Successfully");
+    } catch (error: any) {
+      console.error(error);
+      handleOnClose();
+      toast.error(error.message);
+    } finally {
+      retryAttempts = 0;
+    }
+  };
+
   const handleEndCall = () => {
     if ($connection.status === "disconnected") return;
     console.log("handleEndCall");
@@ -154,15 +190,58 @@
     }
   };
 
+  const requestNotificationPermission = async () => {
+    try {
+      const data = await Notification.requestPermission();
+      if (data !== "granted") {
+        throw new Error("Please allow notification permission to recieve call");
+      }
+      const registration = await navigator.serviceWorker.ready;
+
+      // const existingSubscription =
+      //   await registration.pushManager.getSubscription();
+
+      // if (existingSubscription) return;
+
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: pushNotificationPublicKey,
+      });
+
+      const response = await fetch("/push", {
+        method: "POST",
+        body: JSON.stringify({ subscription }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) {
+        throw new Error("Push Subcription fails");
+      }
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message);
+    }
+  };
+
   onMount(() => {
+    const channel = new BroadcastChannel("sw-messages");
+    channel.addEventListener("message", (event) => {
+      if (event.data.type === "decline") {
+        handleOnClose();
+      }
+    });
     peer.on("error", (error) => {
       if (error.type === "unavailable-id" || error.type === "disconnected") {
         toast.error("Already loggedIn on another place. Logout from there");
       } else if (error.type === "peer-unavailable") {
-        if (!$connection.call?.metadata?.peerName) return;
-        toast.error(`${$connection.call?.metadata?.peerName} is not online`);
-        handleOnClose();
-        $connection.call?.close();
+        if (!$connection.call) return;
+        retryAttempts++;
+        if (retryAttempts > 15) {
+          sendNotification($connection.call?.peer!);
+          closeVideo($connection.call?.localStream!);
+          $connection.call.close();
+        }
         console.error(error.message);
       } else {
         console.log({ error });
@@ -170,25 +249,40 @@
       }
     });
 
+    const query = $page.url.searchParams.get("answer");
+    console.log({ query });
+
+    if (query !== null) {
+      handleCall(query);
+    }
+
     peer.on("call", async (call) => {
-      console.log("document.visibilityState", document.visibilityState);
-      console.log("Notification.permission", Notification.permission);
+      // console.log("document.visibilityState", document.visibilityState);
+      // console.log("Notification.permission", Notification.permission);
+      if ($connection.status === "connecting") {
+        $connection = {
+          status: "connected",
+          call,
+        };
+        await handleAnswerCall();
+        return;
+      }
       try {
         if (
           document.visibilityState === "hidden" &&
           Notification.permission === "granted"
         ) {
-          console.log("Sending Notification");
-          const notification = new Notification(`${call.metadata.peerName}`, {
-            vibrate: [200, 100, 200, 100, 200, 100, 200],
-            requireInteraction: true,
-          });
-          document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible" && notification) {
-              console.log("closing notification");
-              notification.close();
-            }
-          });
+          // console.log("Sending Notification");
+          // const notification = new Notification(`${call.metadata.peerName}`, {
+          //   vibrate: [200, 100, 200, 100, 200, 100, 200],
+          //   requireInteraction: true,
+          // });
+          // document.addEventListener("visibilitychange", () => {
+          //   if (document.visibilityState === "visible" && notification) {
+          //     console.log("closing notification");
+          //     notification.close();
+          //   }
+          // });
         }
       } catch (error) {
         console.error(error);
@@ -207,22 +301,15 @@
       ) {
         toast.error(
           `${
-            $connection.call?.metadata?.peerName
+            $connection.call?.metadata.peerName
           } have ${connection.label.toLowerCase()} the call`
         );
         handleOnClose();
-        $connection.call?.close();
         connection.close();
       }
     });
-    Notification.requestPermission()
-      .then((permission) => {
-        console.log(permission);
-      })
-      .catch(() => {
-        toast.error("Please allow notification permission");
-      });
 
+    requestNotificationPermission();
     return () => {
       $connection.call?.close();
       peer.destroy();
@@ -236,7 +323,7 @@
       <slot name="header" />
     </Card.Header>
     <Card.Content>
-      <slot {handleAnswerCall} {handleCall} />
+      <slot {handleAnswerCall} {handleCall} {sendNotification} />
     </Card.Content>
   </Card.Root>
   <Card.Root
@@ -273,13 +360,13 @@
       />
     {:else if $connection.status === "incomming"}
       <Incomming
-        peerName={$connection.call?.metadata?.peerName}
+        peerName={$connection.call?.metadata.peerName}
         on:answer={handleAnswerCall}
         on:decline={() => handleDecline()}
       />
     {:else if $connection.status === "connecting"}
       <Connecting
-        peerName={$connection.call?.metadata?.peerName}
+        peerName={$connection.call?.metadata.peerName}
         on:decline={() => handleDecline()}
       />
     {:else}

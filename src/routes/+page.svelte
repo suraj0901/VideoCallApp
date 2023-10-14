@@ -1,21 +1,38 @@
 <script lang="ts">
-  import Profile from "$lib/Profile.svelte";
   import Content from "$lib/Video/Content.svelte";
   import * as Avatar from "$lib/components/ui/avatar";
   import Button from "$lib/components/ui/button/button.svelte";
+  import db, { Store } from "$lib/db.js";
   import { LogOut, Phone } from "lucide-svelte";
+  import { onMount } from "svelte";
 
   export let data;
 
-  let filter_user: any[] = [];
+  let profileQuery = db.query(Store.profiles);
+  let filter_user: IDBRequest<any[]>;
+
+  const refresh_user_list = async () => {
+    const user = await profileQuery.get(1);
+    filter_user = user.user.filter((user) => user.id !== data.self.id);
+  };
+
+  onMount(async () => {
+    await refresh_user_list();
+  });
+
   $: {
     if (data.users) {
-      filter_user = data.users.filter((user) => user.id !== data.self.id);
+      profileQuery.put({ user: data.users, id: 1 });
     }
   }
 </script>
 
-<Content currentUser={data.self} let:handleCall>
+<Content
+  currentUser={data.self}
+  pushNotificationPublicKey={data.subscription_public_key}
+  let:handleCall
+  let:sendNotification
+>
   <span class="flex justify-between" slot="header">
     <p class="text-xl items-center">{data.self.user_metadata.name}</p>
     <form method="post" action="?/signout">
@@ -24,7 +41,7 @@
       </Button>
     </form>
   </span>
-  {#if filter_user.length}
+  {#if filter_user?.length}
     <div class="grid">
       {#each filter_user as user}
         <div class="shadow bg-gray-800/30 p-2 rounded flex justify-between">
@@ -36,6 +53,7 @@
               />
               <Avatar.Fallback>{user.name.slice(0, 2)}</Avatar.Fallback>
             </Avatar.Root>
+
             <div>
               <p class="text-lg">{user.name}</p>
               <p class="text-sm">{user.username}</p>
@@ -59,3 +77,5 @@
     </p>
   {/if}
 </Content>
+
+<!-- on:click={() => handleCall(user.id, user.name)} -->
