@@ -2,13 +2,13 @@
   import Content from "$lib/Video/Content.svelte";
   import * as Avatar from "$lib/components/ui/avatar";
   import Button from "$lib/components/ui/button/button.svelte";
-  import db, { Store } from "$lib/db.js";
+  import db, { Store, initDB } from "$lib/db.js";
   import { LogOut, Phone } from "lucide-svelte";
   import { onMount } from "svelte";
 
   export let data;
 
-  let profileQuery = db.query(Store.profiles);
+  let profileQuery: IDBObjectStore;
   let filter_user: IDBRequest<any[]>;
 
   const refresh_user_list = async () => {
@@ -17,11 +17,13 @@
   };
 
   onMount(async () => {
+    await initDB();
+    profileQuery = db.query(Store.profiles);
     await refresh_user_list();
   });
 
   $: {
-    if (data.users) {
+    if (data.users && profileQuery !== undefined) {
       profileQuery.put({ user: data.users, id: 1 });
     }
   }
@@ -31,7 +33,6 @@
   currentUser={data.self}
   pushNotificationPublicKey={data.subscription_public_key}
   let:handleCall
-  let:sendNotification
 >
   <span class="flex justify-between" slot="header">
     <p class="text-xl items-center">{data.self.user_metadata.name}</p>

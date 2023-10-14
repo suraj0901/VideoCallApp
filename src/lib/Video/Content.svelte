@@ -250,11 +250,6 @@
     });
 
     const query = $page.url.searchParams.get("answer");
-    console.log({ query });
-
-    if (query !== null) {
-      handleCall(query);
-    }
 
     peer.on("call", async (call) => {
       // console.log("document.visibilityState", document.visibilityState);
@@ -310,6 +305,9 @@
     });
 
     requestNotificationPermission();
+    if (query !== null) {
+      handleCall(query);
+    }
     return () => {
       $connection.call?.close();
       peer.destroy();

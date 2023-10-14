@@ -80,7 +80,7 @@ self.addEventListener("push", (e) => {
             id: notification.id,
           },
           tag: notification.peerId,
-          // sound: "/ring.mp3",
+          sound: "/ring.mp3",
           actions: [
             {
               action: `answer`,
@@ -136,12 +136,11 @@ self.addEventListener("notificationclick", (event) => {
       event.notification.close();
       const origin = self.location.origin;
       const path = `${origin}?answer=${notification.tag}`;
-      console.log("self.location", path);
-      clients.openWindow(path);
+      event.waitUntil(clients.openWindow(path));
       break;
     case "decline": {
       event.notification.close();
-      sendNotification();
+      event.waitUntil(sendNotification());
       break;
     }
     default:

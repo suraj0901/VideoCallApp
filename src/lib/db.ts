@@ -19,5 +19,5 @@ const schema = (db: IDBDatabase) => {
 
 const db = new AsyncIndexedDB("user", schema, 1);
 
-await db.open();
+export const initDB = async () => await db.open();
 export default db;
